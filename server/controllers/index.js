@@ -2,7 +2,7 @@
 const models = require('../models');
 
 // get the Cat model
-const { Cat } = models;
+const { Cat , Dog} = models;
 
 // Function to handle rendering the index page.
 const hostIndex = async (req, res) => {
@@ -126,6 +126,22 @@ const getName = async (req, res) => {
   }
 }
 
+//getting dogs
+const getDog = async (req, res) => {
+  try{
+    const doc = await Dog.findOne({}).sort({'createdDate': 'desecending'}).lean().exec();
+
+    //if we get a dog stores the name in a variable
+    if(doc) {
+      return res.json({name: doc.name});
+    }
+    return res.status(404).json({erroro: 'No dog found'});
+  }catch(err){
+    console.log(err);
+    return res.status(500).json({error: 'Something went wrong contacting the database'});
+  }
+}
+
 // Function to create a new cat in the database
 const setName = async (req, res) => {
   /* If we look at views/page2.handlebars, the form has inputs for a firstname, lastname
@@ -185,6 +201,34 @@ const setName = async (req, res) => {
   }
 };
 
+//making a new dog
+const setDog = async (req, res) => {
+  //if one of the params is empty throw an error
+  if(!req.body.name || !req.body.breed || !req.body.age){
+    return res.status(400).json({error: 'Name, breed and age are all requried'});
+  }
+
+  const dogData = {
+    name: req.body.name,
+    breed: req.body.breed,
+    age: req.body.age,
+  }
+
+  const newDog = new Dog(dogData);
+
+  try{
+    await newDog.save();
+    return res.status(200).json({
+      name: newDog.name,
+      breed: newDog.breed,
+      age: newDog.age
+    });
+  }catch(err){
+    console.log(err);
+    return res.status(500).json({error: 'failed to create dog'});
+  }
+}
+
 // Function to handle searching a cat by name.
 const searchName = async (req, res) => {
   /* When the user makes a POST request, bodyParser populates req.body with the parameters
@@ -232,6 +276,28 @@ const searchName = async (req, res) => {
   return res.json({ name: doc.name, beds: doc.bedsOwned });
 };
 
+const searchDog = async(req, res) => {
+  //return error if there is nothing in the param
+  if(!req.query.name){
+    res.status(400).json({error: 'Name requres for a search'});
+  }
+
+  let doc;
+
+  try{
+    doc = await Dog.findOne({name: req.query.name}).exec();
+  }catch(err){
+    console.log(err);
+    return req.status(500).json({error: 'Something went wrong'});
+  }
+
+  if(!doc){
+    return res.status(404).json({error: 'No dogs found'})
+  }
+
+  return res.json({name: doc.name, breed: doc.breed, age: doc.age});
+}
+
 /* A function for updating the last cat added to the database.
    Usually database updates would be a more involved process, involving finding
    the right element in the database based on query, modifying it, and updating
@@ -276,12 +342,31 @@ const updateLast = (req, res) => {
   });
 };
 
+const updateDog = (req, res) => {
+  const updatePromise = Dog.findOneAndUpdate({}, {$inc: {'age': 1}}, {
+    returnDocument: 'after',
+    sort: {'createdDate': 'descending'}
+  }).lean().exec();
+
+  updatePromise.then((doc) => res.json({
+    name: doc.name,
+    breed: doc.breed,
+    age: doc.age,
+  }));
+
+  updatePromise.catch((err)=>{
+    console.log(err);
+    return res.status(500).json({error: 'Something went wrong'});
+  });
+}
+
 // A function to send back the 404 page.
 const notFound = (req, res) => {
   res.status(404).render('notFound', {
     page: req.url,
   });
 };
+
 
 // export the relevant public controller functions
 module.exports = {
@@ -290,8 +375,12 @@ module.exports = {
   page2: hostPage2,
   page3: hostPage3,
   getName,
+  getDog,
   setName,
+  setDog,
   updateLast,
+  updateDog,
   searchName,
+  searchDog,
   notFound,
 };
